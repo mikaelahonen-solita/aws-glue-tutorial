@@ -3,7 +3,7 @@
 #########################################
 
 #Import python modules
-import sys
+from datetime import datetime
 
 #Import pyspark modules
 from pyspark.context import SparkContext
@@ -20,12 +20,6 @@ spark_context = SparkContext.getOrCreate()
 glue_context = GlueContext(spark_context)
 session = glue_context.spark_session
 
-#Initialize Glue job
-args = getResolvedOptions(sys.argv, ['JOB_NAME'])
-job = Job(glue_context)
-job.init(args['JOB_NAME'], args)
-
-
 #Parameters
 glue_db = "glue-blog-tutorial-db"
 glue_tbl = "read"
@@ -34,6 +28,10 @@ s3_write_path = "s3://glue-blog-tutorial-bucket/write"
 #########################################
 ### EXTRACT (READ DATA)
 #########################################
+
+#Log starting time
+dt_start = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+print("Start time:", dt_start)
 
 #Read movie data to Glue dynamic frame
 dynamic_frame_read = glue_context.create_dynamic_frame.from_catalog(database = glue_db, table_name = glue_tbl)
@@ -49,19 +47,18 @@ data_frame = dynamic_frame_read.toDF()
 decade_col = f.floor(data_frame["year"]/10)*10
 data_frame = data_frame.withColumn("decade", decade_col)
 
-#Group by decade
-#Count movies, get average rating
+#Group by decade: Count movies, get average rating
 data_frame_aggregated = data_frame.groupby("decade").agg(
     f.count(f.col("movie_title")).alias('movie_count'),
     f.mean(f.col("rating")).alias('rating_mean'),
 )
 
-#Sort by number of movies on the decade
+#Sort by the number of movies per the decade
 data_frame_aggregated = data_frame_aggregated.orderBy(f.desc("movie_count"))
 
 #Print result table
-#Note: This is an action that forces the execution of the data frame plan
-#With big data the slowdown would be significant
+#Note: Show function is an action. Actions force the execution of the data frame plan.
+#With big data the slowdown would be significant without cacching.
 data_frame_aggregated.show(10)
 
 #########################################
@@ -86,5 +83,6 @@ glue_context.write_dynamic_frame.from_options(
     format = "csv"
 )
 
-#Glue job is ready
-job.commit()
+#Log end time
+dt_end = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+print("Start time:", dt_end)
